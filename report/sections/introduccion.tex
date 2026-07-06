@@ -1,0 +1,14 @@
+\section{Introducción}\label{sec:intro}
+
+Detrás de todo modelo que ``aprende'' hay un problema de optimización numérica. Ajustar una regresión, un clasificador o un modelo de lenguaje consiste en elegir un vector de parámetros $\theta$ que minimice el riesgo empírico,
+\begin{equation}
+  f(\theta) = \frac{1}{n}\sum_{i=1}^{n} \ell_i(\theta),
+  \label{eq:erm}
+\end{equation}
+donde $\ell_i$ mide qué tan mal predice $\theta$ el dato $i$. Esta forma de promedio finito encierra a la vez el problema y su solución. El problema: el gradiente exacto, $\nabla f = \frac{1}{n}\sum_i \nabla\ell_i$, también es una suma, y evaluarlo cuesta una pasada completa por los $n$ datos. La solución: por ser un promedio, puede estimarse con una muestra, a una fracción del costo.
+
+En el régimen moderno, tanto $n$ como la dimensión $d$ de $\theta$ alcanzan los miles de millones, y eso descarta la maquinaria clásica de orden superior: el método de Newton exige formar la matriz Hessiana y resolver un sistema con ella, con costo $O(nd^2 + d^3)$ por iteración~\cite{bottou2018}. Sobreviven los métodos de primer orden, que solo consultan el gradiente. Su lógica es la misma que recorre todo el curso de análisis numérico: construir un modelo local con el polinomio de Taylor, dar un paso según ese modelo y repetir.
+
+Este trabajo implementa y estudia esa familia. Se deriva el descenso de gradiente (GD) junto con su condición de estabilidad, se introduce la versión estocástica (SGD) y su generalización por mini-lotes, se presenta el criterio práctico de parada temprana y se analiza la variante de Momentum de Polyak. Todos los métodos se implementan en NumPy como funciones de actualización puras de menos de diez líneas, se verifican sobre superficies de prueba con mínimo conocido y se comparan sobre una regresión logística con datos reales, bajo una contabilidad de costo en épocas que hace las comparaciones justas.
+
+El resto del documento se organiza así. La Sección~\ref{sec:preliminares} fija la notación y la lectura geométrica del problema. La Sección~\ref{sec:gd} deriva GD desde el polinomio de Taylor y analiza su convergencia, su estabilidad y su costo. Las Secciones~\ref{sec:sgd} y~\ref{sec:minilotes} introducen el estimador estocástico del gradiente, el mini-lote y la parada temprana. La Sección~\ref{sec:momentum} presenta Momentum. La Sección~\ref{sec:impl} describe la implementación y la Sección~\ref{sec:exp} los experimentos y resultados. La Sección~\ref{sec:concl} concluye.

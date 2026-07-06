@@ -1,0 +1,37 @@
+\section{Del polinomio de Taylor al descenso de gradiente}\label{sec:gd}
+
+\subsection{Derivación}
+
+El método sale de la herramienta central del curso: el polinomio de Taylor. Cerca de un punto $\theta$, el modelo local de primer orden de $f$ es
+\begin{equation}
+  f(\theta + \Delta) = f(\theta) + \nabla f(\theta)^{\mathsf{T}}\Delta + O\bigl(\norm{\Delta}^2\bigr).
+  \label{eq:taylor}
+\end{equation}
+Si se elige el desplazamiento $\Delta = -\alpha\,\nabla f(\theta)$, el término lineal se vuelve $-\alpha\norm{\nabla f(\theta)}^2 \leq 0$: mientras el gradiente no sea nulo, el modelo local predice descenso. Es además la mejor elección posible: entre todos los $\Delta$ de norma fija, el producto $\nabla f^{\mathsf{T}}\Delta$ se minimiza cuando $\Delta$ es antiparalelo a $\nabla f$, por la desigualdad de Cauchy-Schwarz. De ahí el método completo,
+\begin{equation}
+  \theta_{k+1} = \theta_k - \alpha\,\nabla f(\theta_k).
+  \label{eq:gd}
+\end{equation}
+Tiene una sola perilla, $\alpha$, y es la más delicada de todas, porque $\alpha$ controla exactamente el término $O(\norm{\Delta}^2)$ que el modelo local ignora. Con $\alpha$ pequeño el modelo es fiel: el descenso es seguro pero lento. Con $\alpha$ grande, el término ignorado puede superar al lineal y hacer subir a $f$.
+
+\subsection{Convergencia y estabilidad en cuadráticas}
+
+Para una $f$ cuadrática con Hessiana $H$ simétrica definida positiva y mínimo $\theta^*$, la iteración~\eqref{eq:gd} da una recurrencia exacta para el error:
+\begin{equation}
+  \theta_{k+1} - \theta^* = (I - \alpha H)\,(\theta_k - \theta^*).
+  \label{eq:recurrencia}
+\end{equation}
+En la base de vectores propios de $H$, la componente del error asociada al valor propio $\lambda_i$ se multiplica por $(1 - \alpha\lambda_i)$ en cada iteración. El método converge si y solo si $|1 - \alpha\lambda_i| < 1$ en toda dirección, es decir,
+\begin{equation}
+  0 < \alpha < \frac{2}{\lambda_{\max}}.
+  \label{eq:estabilidad}
+\end{equation}
+Con la tasa óptima $\alpha^* = 2/(\lambda_{\max} + \lambda_{\min})$, el error se contrae por el factor $(\kappa - 1)/(\kappa + 1)$ por iteración, donde $\kappa = \lambda_{\max}/\lambda_{\min}$ es el número de condición de $H$. La velocidad de GD la gobierna la geometría del problema, no solo su tamaño.
+
+El fenómeno se observa con precisión sobre el problema sintético de mínimos cuadrados de la Sección~\ref{sec:impl} ($n = 80$ datos, dos parámetros), cuya Hessiana tiene valores propios $1.454$ y $0.958$, de modo que el límite~\eqref{eq:estabilidad} es $\alpha < 1.375$. Partiendo del mismo punto: con $\alpha = 0.015$ el método avanza tan poco que tras 80 iteraciones sigue en la ladera del tazón ($f \approx 0.614$). Con $\alpha = 0.8$ baja directo al fondo ($f \approx 0.321$, el error irreducible impuesto por el ruido de los datos). Con $\alpha = 1.25$, el factor en la dirección más rígida es $1 - 1.25 \cdot 1.454 \approx -0.82$: negativo, por lo que la trayectoria alterna de lado, pero de magnitud menor que uno, por lo que aun así converge. Con $\alpha = 1.381$ ese factor vale $\approx -1.008$: cada rebote sube un poco más que el anterior hasta escapar del tazón. Entre converger y explotar hay menos de una centésima de diferencia en $\alpha$.
+
+\subsection{Las dos debilidades}
+
+La primera es el costo. Por la forma de suma de~\eqref{eq:erm}, cada iteración exacta de~\eqref{eq:gd} recorre los $n$ datos: $O(nd)$ operaciones, una época entera por iteración. Cuando $n$ se cuenta en miles de millones, una sola actualización de $\theta$ es prohibitiva. Romper ese acople entre el trabajo por iteración y el tamaño de los datos es el tema de la Sección~\ref{sec:sgd}.
+
+La segunda es la geometría. Cuando $\kappa$ es grande, el paisaje es un valle angosto, el factor $(\kappa-1)/(\kappa+1)$ se acerca a uno y la trayectoria zigzaguea de pared a pared en lugar de avanzar por el fondo. Con $\kappa = 25$, el factor óptimo es $24/26 \approx 0.923$: apenas $7.7\,\%$ de reducción del error por iteración (Fig.~\ref{fig:ravine}, Sección~\ref{sec:exp}). Reparar esa geometría es el tema de la Sección~\ref{sec:momentum}.

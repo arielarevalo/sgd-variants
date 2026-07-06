@@ -1,0 +1,13 @@
+\section{Conclusiones}\label{sec:concl}
+
+Cuatro conclusiones, cada una respaldada por un experimento de la Sección~\ref{sec:exp}.
+
+\emph{El trato de SGD gana a escala.} Sustituir el gradiente exacto por un estimador insesgado cambia precisión por costo en cada iteración, y el presupuesto rinde más: sobre banknote, los métodos estocásticos dominan a GD desde la primera época y resuelven el problema dentro de un presupuesto en el que GD ni siquiera se acerca a converger. La insesgadez~\eqref{eq:insesgado} garantiza que el ahorro no se paga con sesgo, solo con ruido.
+
+\emph{El lote es la perilla de la varianza.} El promedio de mini-lote~\eqref{eq:minibatch} conserva la insesgadez, reduce la varianza del ruido como $1/|B|$ y mantiene constante el costo por época. En los datos reales, $|B| = 16$ produce una curva visiblemente más limpia que $|B| = 1$ y tolera una tasa mayor, sin perder velocidad por época. En la práctica, el lote se elige tan grande como la memoria permita.
+
+\emph{La parada temprana es regularización sin costo.} El mínimo del error de validación llega mucho antes que el final del entrenamiento (la iteración 130 de 800 en el experimento) y pasarlo de largo multiplica ese error por casi treinta. Detenerse ahí equivale a una penalización $\ell_2$ implícita y solo requiere monitorear el error correcto.
+
+\emph{Momentum repara la geometría.} Donde el condicionamiento es adverso, la memoria de gradientes cancela el zigzag y compone el avance persistente: cuatro órdenes de magnitud por debajo de GD en Rosenbrock, con la misma tasa y el mismo número de iteraciones. Donde el problema ya está bien acondicionado, como en banknote con rasgos estandarizados, no aporta. Su ventaja es geométrica, no universal, y saber cuándo una herramienta no ayuda es parte de entenderla.
+
+En una frase: entrenar es minimizar un promedio sobre datos, y la eficiencia sale de estimar el gradiente barato, dosificar su varianza con el lote, detenerse a tiempo y corregir la geometría con memoria.

@@ -1,0 +1,23 @@
+\section{Mini-lotes y parada temprana}\label{sec:minilotes}
+
+\subsection{El estimador de mini-lote}
+
+Un dato y todos los datos son los extremos de un continuo. El punto intermedio es el mini-lote: se sortea un subconjunto $B \subset \{1, \dots, n\}$ y se promedian sus gradientes,
+\begin{equation}
+  g = \nabla f_B(\theta) = \frac{1}{|B|}\sum_{i \in B} \nabla\ell_i(\theta),
+  \label{eq:minibatch}
+\end{equation}
+donde $|B|$ es el tamaño del lote, que va desde $|B| = 1$ (el SGD de la sección anterior) hasta $|B| = n$ (GD exacto). La actualización es de nuevo la regla~\eqref{eq:gd} con $g$ en lugar del gradiente exacto. Del promedio se desprenden tres propiedades:
+\begin{itemize}
+  \item \emph{Sigue siendo insesgado.} Promediar no cambia la esperanza: el argumento de~\eqref{eq:insesgado} sobrevive intacto para cualquier $|B|$.
+  \item \emph{El ruido decae con el lote.} La varianza del promedio de $|B|$ muestras aproximadamente independientes es $1/|B|$ veces la de una sola: cuadruplicar el lote reduce la desviación del ruido a la mitad.
+  \item \emph{El costo por iteración crece.} Cada iteración cuesta $O(|B|\,d)$, y una época equivale a $n/|B|$ iteraciones. El costo por época es el mismo $O(nd)$ de siempre: el lote solo decide si la época se gasta en muchas iteraciones ruidosas o en pocas iteraciones limpias.
+\end{itemize}
+
+Con eso, $|B|$ se vuelve una perilla de diseño. En la práctica se elige tan grande como quepa en la memoria del acelerador, porque la ganancia marginal en varianza se aplana mientras que el número de actualizaciones por época sí se pierde. Un estimador con menos varianza tolera además pasos más largos: en los experimentos de la Sección~\ref{sec:exp}, el lote de 16 corre con una tasa cuatro veces mayor que el lote de 1.
+
+\subsection{Parada temprana}
+
+La segunda decisión práctica es cuándo detenerse. En un modelo con capacidad de sobra, entrenar de más memoriza el ruido: el error de entrenamiento sigue bajando indefinidamente, mientras que el error sobre datos no vistos baja, toca un mínimo y vuelve a subir. El criterio operativo es monitorear el error de validación y detenerse en su mínimo (Fig.~\ref{fig:early}, Sección~\ref{sec:exp}).
+
+No se trata de una heurística improvisada sino de regularización~\cite{prechelt1998}. En el caso cuadrático puede demostrarse que $k$ iteraciones de GD desde el origen equivalen a resolver el problema con una penalización $\ell_2$ cuyo peso efectivo decrece al crecer $k$: detenerse antes equivale a regularizar más. La lectura cualitativa es que GD recorre primero las direcciones de curvatura alta, donde vive la señal robusta de los datos, y solo tarde las de curvatura baja, donde vive el sobreajuste. Detenerse a tiempo captura la señal sin el ruido, y no cuesta nada.

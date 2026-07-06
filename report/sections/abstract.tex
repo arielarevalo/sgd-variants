@@ -1,0 +1,7 @@
+\begin{abstract}
+El entrenamiento de un modelo de aprendizaje automático consiste en minimizar el riesgo empírico, un promedio de pérdidas sobre los $n$ datos. A gran escala solo resultan viables los métodos iterativos de primer orden, y la forma de suma del objetivo permite abaratar cada iteración estimando el gradiente con una muestra. Se implementan en NumPy, como funciones de actualización puras de menos de diez líneas, el descenso de gradiente (GD), su versión estocástica (SGD) con mini-lotes, el criterio de parada temprana y la variante de Momentum. Los métodos se comparan sobre dos superficies de prueba clásicas, una cuadrática mal condicionada y la función de Rosenbrock, y sobre una regresión logística regularizada con datos reales (UCI Banknote Authentication, $n = 1372$), contabilizando el costo en épocas para que la comparación sea por unidad de cómputo. Los resultados reproducen la teoría: SGD domina a GD por época desde la primera pasada, el tamaño del lote regula la varianza del estimador, la parada temprana actúa como regularización sin costo adicional, y Momentum acelera justo donde la geometría es adversa, con una mejora de cuatro órdenes de magnitud sobre GD en Rosenbrock.
+\end{abstract}
+
+\begin{IEEEkeywords}
+análisis numérico, optimización, descenso de gradiente estocástico, mini-lotes, Momentum, parada temprana, regresión logística
+\end{IEEEkeywords}

@@ -1,0 +1,76 @@
+% Informe escrito del trabajo de investigación MA-1006 (I Ciclo 2026).
+% Compilar: ./build.sh   (pdflatex + bibtex + pdflatex x2)
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[spanish, es-nosectiondot, es-noshorthands, es-tabla]{babel}
+% El espaciado antes de % lo ponemos a mano (\,\%); sin esto, la redefinición
+% de \% de babel-spanish choca con el pegamento de modo matemático.
+\spanishplainpercent
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{listings}
+
+\graphicspath{{../code/figures/}}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+
+\renewcommand{\IEEEkeywordsname}{Palabras clave}
+\renewcommand{\lstlistingname}{Listado}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape,
+  showstringspaces=false,
+  frame=single,
+  framerule=0.4pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+  xleftmargin=4pt,
+  xrightmargin=4pt,
+}
+
+\begin{document}
+
+\input{sections/portada}
+
+\title{Implementación de técnicas de descenso de gradiente estocástico y variantes\\
+\thanks{Trabajo de investigación del curso MA-1006 Introducción al Análisis Numérico, Grupo 01, I Ciclo 2026, Universidad de Costa Rica. Profesor: Óscar Salas Huertas.}
+}
+
+\author{
+\IEEEauthorblockN{Ariel Arévalo Alvarado}
+\IEEEauthorblockA{\textit{Escuela de Ciencias de la Computación e Informática} \\
+\textit{Universidad de Costa Rica}\\
+San José, Costa Rica \\
+ariel.arevalo@ucr.ac.cr \\
+Carné B50562}
+}
+
+\IEEEaftertitletext{\begin{center}\itshape 5 de julio de 2026\end{center}}
+\maketitle
+
+\input{sections/abstract}
+\input{sections/introduccion}
+\input{sections/preliminares}
+\input{sections/gradiente}
+\input{sections/sgd}
+\input{sections/minilotes}
+\input{sections/momentum}
+\input{sections/implementacion}
+\input{sections/experimentos}
+\input{sections/conclusiones}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

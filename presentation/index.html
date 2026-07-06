@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Descenso de gradiente estocástico y variantes · MA-1006 · Ariel Arévalo</title>
+<link rel="stylesheet" href="vendor/fonts/fonts.css" />
+<link rel="stylesheet" href="vendor/katex/katex.min.css" />
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/contrib/auto-render.min.js"></script>
+<script defer src="vendor/plotly/plotly-gl3d.min.js"></script>
+<script defer src="js/playground.js"></script>
+<style>
+  /* ============ palette: "tinta y fósforo" ============ */
+  :root {
+    --bg: #0A0E1A;
+    --bg-2: #0E1526;
+    --surface: #131C33;
+    --surface-2: #182342;
+    --line: #263455;
+    --text: #EDF2FF;
+    --muted: #9DAAC8;
+    --muted-2: #66718D;
+    --accent: #8B7CF6;
+    --accent-soft: #A99DF8;
+    --c-gd: #9FB2D3;    /* silver: the baseline */
+    --c-sgd: #38BDF8;   /* sky */
+    --c-sgdb: #7DD3FC;  /* light sky: mini-batches */
+    --c-mom: #FFB454;   /* amber */
+    --c-good: #3EE08F;  /* mint: success, early-stop marker */
+    --c-bad: #F86DA0;   /* pink: divergence, residuals */
+    --radius: 14px;
+    --pad: 6.5vh 7vw;
+    --maxw: 1220px;
+    --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --disp: "Space Grotesk", var(--sans);
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; background: var(--bg); color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+
+  /* ============ chrome ============ */
+  #progress { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: var(--accent); z-index: 50; }
+  .chrome { position: fixed; bottom: 2.4vh; z-index: 40; font-size: 13px; letter-spacing: .02em; color: var(--muted-2); }
+  .chrome.left { left: 7vw; }
+  .chrome.right { right: 7vw; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12px; }
+  .chrome b { color: var(--muted); font-weight: 600; }
+  #hint { position: fixed; top: 16px; right: 18px; z-index: 40; font-size: 12px; color: var(--muted-2); opacity: .7; }
+  #hint kbd { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-family: inherit; font-size: 11px; color: var(--muted); }
+  #scenedots { position: fixed; bottom: 2.55vh; left: 50%; transform: translateX(-50%); z-index: 40; display: flex; gap: 7px; }
+  #scenedots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); transition: background .2s; }
+  #scenedots i.on { background: var(--accent); }
+  .chrome, #hint, #scenedots { transition: opacity .3s ease; }
+  body.scrolling .chrome, body.scrolling #hint, body.scrolling #scenedots { opacity: 0; }
+
+  /* ============ slides: free scroll, JS settle, scene tracks ============ */
+  /* A slide with N scenes spans (N+1) viewport-heights; its content pins
+     (sticky) while the scroll position walks the scenes. After the scroll
+     goes idle, the deck glides to the nearest scene/slide boundary. */
+  .deck { height: 100%; width: 100%; overflow-y: auto; scrollbar-width: none; }
+  .deck::-webkit-scrollbar { display: none; }
+  .slide { position: relative; height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: var(--pad); }
+  .slide[data-scenes] { display: block; padding: 0; }
+  .slide[data-scenes] .sticky { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: var(--pad); }
+  .slide[data-scenes].fill .sticky { justify-content: stretch; padding-top: 5vh; padding-bottom: 6.5vh; }
+  .wrap { width: 100%; max-width: var(--maxw); margin: 0 auto; position: relative; z-index: 2; opacity: .3; transform: translateY(8px); transition: opacity .65s ease, transform .65s ease; }
+  .slide.active .wrap { opacity: 1; transform: none; }
+  .slide.fill .wrap { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+
+  .kicker { display: inline-flex; align-items: center; gap: 10px; font-family: var(--disp); font-size: 13px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-soft); margin-bottom: 14px; }
+  .kicker .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .kicker.gd   { color: var(--c-gd); }   .kicker.gd .dot   { background: var(--c-gd); }
+  .kicker.sgd  { color: var(--c-sgd); }  .kicker.sgd .dot  { background: var(--c-sgd); }
+  .kicker.sgdb { color: var(--c-sgdb); } .kicker.sgdb .dot { background: var(--c-sgdb); }
+  .kicker.mom  { color: var(--c-mom); }  .kicker.mom .dot  { background: var(--c-mom); }
+
+  h1 { font-family: var(--disp); font-size: clamp(40px, 6.4vw, 84px); line-height: 1.02; font-weight: 700; letter-spacing: -0.025em; }
+  h2 { font-family: var(--disp); font-size: clamp(24px, 3.1vw, 40px); line-height: 1.1; font-weight: 700; letter-spacing: -0.015em; margin-bottom: 14px; text-wrap: balance; }
+  h1 .accent, h2 .accent { color: var(--accent-soft); }
+  p.lead { font-size: clamp(16px, 1.7vw, 21px); line-height: 1.5; color: var(--muted); max-width: 60ch; }
+  .m-gd { color: var(--c-gd); } .m-sgd { color: var(--c-sgd); } .m-sgdb { color: var(--c-sgdb); }
+  .m-mom { color: var(--c-mom); } .m-good { color: var(--c-good); }
+  .mono { font-family: var(--mono); }
+
+  /* "why should I care" hook */
+  .hook { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 2px 0 14px; font-size: clamp(14.5px, 1.4vw, 17px); line-height: 1.5; color: var(--muted); font-style: italic; max-width: 78ch; }
+  .hook b { color: var(--text); font-style: normal; font-weight: 600; }
+  .hook .q { display: block; font-family: var(--disp); font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent-soft); margin-bottom: 3px; }
+
+  /* ============ equations ============ */
+  .eq-hero { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 26px; margin: 12px 0; text-align: center; overflow: hidden; }
+  .eq-hero .katex { font-size: clamp(1.4rem, 2.8vw, 2.3rem); }
+  .eq-hero .katex-display { margin: .3em 0; }
+  .eq-hero.big .katex { font-size: clamp(1.7rem, 3.4vw, 2.8rem); }
+  .eq-hero.dim { opacity: .62; border-style: dashed; }
+  .eq-hero.dim .katex { font-size: clamp(1.05rem, 1.8vw, 1.5rem); }
+  .eq-strip { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; flex-wrap: wrap; }
+  .eq-strip .eq { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 7px 16px; font-size: 14.5px; color: var(--muted); }
+  .eq-strip .eq .katex { font-size: clamp(1rem, 1.5vw, 1.4rem); }
+  .eq-note { font-size: 14.5px; color: var(--muted-2); margin-top: 6px; text-align: center; }
+  .eq-note b { color: var(--muted); font-weight: 600; }
+
+  /* scene-driven builds */
+  .bld { opacity: 0; transform: translateY(10px); transition: opacity .4s ease, transform .4s ease; }
+  .bld.on { opacity: 1; transform: none; }
+  .slide.active .stag > * { opacity: 0; animation: rise .45s ease forwards; }
+  .slide.active .stag > *:nth-child(1) { animation-delay: .08s; }
+  .slide.active .stag > *:nth-child(2) { animation-delay: .18s; }
+  .slide.active .stag > *:nth-child(3) { animation-delay: .28s; }
+  .slide.active .stag > *:nth-child(4) { animation-delay: .38s; }
+  .slide.active .stag > *:nth-child(5) { animation-delay: .48s; }
+  .slide.active .stag > *:nth-child(6) { animation-delay: .58s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* ============ cover ============ */
+  .cover { background:
+      radial-gradient(110% 75% at 82% 108%, rgba(139,124,246,.22) 0%, rgba(139,124,246,0) 55%),
+      radial-gradient(80% 60% at 8% -8%, rgba(56,189,248,.10) 0%, rgba(56,189,248,0) 50%),
+      var(--bg);
+  }
+  .cover .course { font-size: 15px; color: var(--c-sgd); font-weight: 600; letter-spacing: .04em; margin-bottom: 28px; }
+  .cover h1 { max-width: 18ch; }
+  .cover .meta { margin-top: 48px; display: grid; grid-template-columns: repeat(3, auto); gap: 0 56px; justify-content: start; padding-top: 24px; border-top: 1px solid var(--line); }
+  .cover .meta .k { color: var(--muted-2); text-transform: uppercase; letter-spacing: .1em; font-size: 11px; margin-bottom: 5px; }
+  .cover .meta .v { color: var(--text); font-weight: 600; font-size: 15px; }
+  .cover .chain { margin-top: 40px; display: flex; align-items: center; gap: 10px; font-family: var(--disp); font-size: clamp(13px, 1.3vw, 17px); font-weight: 700; letter-spacing: .02em; flex-wrap: wrap; }
+  .cover .chain .arr { color: var(--muted-2); font-weight: 400; }
+
+  /* ============ cards / notation ============ */
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+  .card .h { font-family: var(--disp); font-size: 13px; font-weight: 700; letter-spacing: .06em; margin-bottom: 7px; text-transform: uppercase; color: var(--muted); }
+  .card p { font-size: 14.5px; line-height: 1.45; color: var(--muted); }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .notation { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .notation .nt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 11px 15px; }
+  .notation .nt .sym { font-size: 15px; margin-bottom: 4px; color: var(--text); }
+  .notation .nt .sym .katex { font-size: 1.15rem; }
+  .notation .nt .def { font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+
+  /* failure → fix band on method slides */
+  .ff { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .ff .chip { border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; font-size: 14px; color: var(--muted); }
+  .ff .chip b { font-weight: 600; }
+  .ff .chip.prob.sgd b { color: var(--c-sgd); }
+  .ff .chip.fix.mom { border-color: rgba(255,180,84,.5); }
+  .ff .chip.fix.mom b { color: var(--c-mom); }
+
+  /* ============ playground containers ============ */
+  .pg { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; margin-top: 8px; }
+  .pg-main { position: relative; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; min-height: 0; }
+  .pg-plot { position: absolute; inset: 0; pointer-events: auto; }
+  .pg-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: none; background: var(--bg-2); z-index: 3; }
+  .pg-overlay.on { display: block; }
+  .pg-print { display: none; }
+  .pg-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .pg-caption { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-size: 14.5px; line-height: 1.45; color: var(--text); min-height: 62px; }
+  .pg-caption .mono { color: var(--accent-soft); font-size: 13px; }
+  .pg-legend { display: flex; flex-direction: column; gap: 6px; }
+  .pg-chip { display: flex; align-items: center; gap: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; font-size: 13.5px; color: var(--muted); }
+  .pg-chip .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .pg-chip .name { font-weight: 600; color: var(--text); white-space: nowrap; }
+  .pg-chip .val { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .pg-chip.dead .val { color: var(--c-bad); }
+  .pg-loss { flex: 1; min-height: 110px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; position: relative; overflow: hidden; }
+  .pg-loss canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+  /* ============ anchor slide (loss landscape) ============ */
+  .anchor { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; margin-top: 6px; }
+  .anchor .col { display: flex; flex-direction: column; gap: 7px; min-height: 0; }
+  .panel-label { font-family: var(--mono); font-size: 11.5px; color: var(--muted-2); letter-spacing: .03em; }
+  .anchor-fitwrap, .anchor-plotwrap { position: relative; flex: 1; min-height: 0; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .anchor-fit { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .anchor-plot { position: absolute; inset: 0; pointer-events: auto; }
+  .anchor-caption { margin-top: 12px; }
+
+  /* ============ code slide ============ */
+  .code2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 10px; }
+  .codebox { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  .codebox .cb-h { display: flex; align-items: center; gap: 9px; padding: 9px 15px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+  .codebox .cb-h .swatch { width: 9px; height: 9px; border-radius: 3px; background: var(--c-mom); }
+  .codebox pre { padding: 14px 16px; font-family: var(--mono); font-size: clamp(10px, 0.92vw, 12.5px); line-height: 1.62; color: var(--text); overflow: hidden; }
+  .codebox .cm { color: var(--muted-2); }
+  .codebox .kw { color: var(--accent-soft); }
+  .codebox .nm { color: var(--c-sgd); }
+  .codebox .fn { color: var(--c-good); }
+
+  /* ============ figure slide ============ */
+  .figwrap { flex: 1; min-height: 0; display: flex; gap: 20px; margin-top: 8px; }
+  .figwrap .figimg { flex: 1; min-width: 0; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .figwrap .figimg img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .figside { width: 280px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ============ conclusions / references ============ */
+  ol.steps { list-style: none; counter-reset: c; margin-top: 8px; }
+  ol.steps li { counter-increment: c; position: relative; padding-left: 52px; margin-bottom: 18px; font-size: clamp(15px, 1.6vw, 20px); line-height: 1.45; color: var(--muted); max-width: 100ch; }
+  ol.steps li b { color: var(--text); font-weight: 600; }
+  ol.steps li::before { content: counter(c); position: absolute; left: 0; top: -2px; width: 34px; height: 34px; border-radius: 10px; background: rgba(139,124,246,.14); border: 1px solid rgba(139,124,246,.4); color: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-family: var(--disp); font-weight: 700; font-size: 15px; }
+  ol.refs { list-style: none; counter-reset: r; }
+  ol.refs li { counter-increment: r; position: relative; padding-left: 42px; margin-bottom: 14px; font-size: 15px; line-height: 1.5; color: var(--muted); max-width: 100ch; }
+  ol.refs li::before { content: "[" counter(r) "]"; position: absolute; left: 0; top: 0; color: var(--c-sgd); font-family: var(--mono); font-weight: 700; font-size: 13px; }
+  ol.refs li .ttl { color: var(--text); }
+  ol.refs li .src { font-style: italic; }
+
+  .svgbox { margin-top: 20px; }
+  .svgbox svg { width: 100%; height: auto; display: block; }
+
+  /* ============ print / PDF export ============ */
+  @media print {
+    @page { size: 1280px 720px; margin: 0; }
+    html, body { overflow: visible; height: auto; }
+    #progress, .chrome, #hint, #scenedots { display: none !important; }
+    .deck { height: auto; overflow: visible; }
+    .slide { position: relative; inset: auto; display: flex !important; height: 720px !important; width: 1280px; page-break-after: always; animation: none; }
+    .slide[data-scenes] { display: block !important; padding: 0; }
+    .slide[data-scenes] .sticky { position: static; height: 720px; }
+    .wrap { opacity: 1 !important; transform: none !important; }
+    .bld { opacity: 1 !important; transform: none !important; }
+    .slide .stag > * { opacity: 1 !important; animation: none !important; }
+    .pg-plot, .anchor-plot { display: none !important; }
+    .pg-print { display: block !important; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div id="hint"><kbd>→</kbd> avanzar · <kbd>←</kbd> volver · <kbd>F</kbd> pantalla completa</div>
+<div id="scenedots"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · PORTADA -->
+  <section class="slide cover active">
+    <div class="wrap">
+      <div class="course">MA-1006 Introducción al Análisis Numérico · Grupo 01</div>
+      <h1>Descenso de gradiente <span class="accent">estocástico</span> y variantes</h1>
+      <div class="chain">
+        <span class="m-gd">Descenso de gradiente</span><span class="arr">→</span>
+        <span class="m-sgd">SGD</span><span class="arr">→</span>
+        <span class="m-sgdb">SGD en la práctica</span><span class="arr">→</span>
+        <span class="m-mom">Momentum</span>
+      </div>
+      <div class="meta">
+        <div><div class="k">Estudiante</div><div class="v">Ariel Arévalo Alvarado</div></div>
+        <div><div class="k">Carné</div><div class="v">B50562</div></div>
+        <div><div class="k">Ciclo</div><div class="v">I Ciclo 2026</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 · POR QUÉ IMPORTA + NOTACIÓN -->
+  <section class="slide" data-scenes="1">
+    <div class="wrap">
+      <span class="kicker"><span class="dot"></span>El problema</span>
+      <h2>Todo modelo que “aprende” está <span class="accent">minimizando una función</span>.</h2>
+      <div class="hook"><span class="q">¿Por qué me importa?</span>El autocompletado del teléfono, el desbloqueo facial, un modelo de lenguaje: todos se entrenan de la misma manera, <b>ajustando parámetros para equivocarse menos</b>. Las técnicas de hoy son las que hacen ese ajuste posible a cualquier escala.</div>
+      <div class="eq-hero">
+        $$\min_{\theta \in \mathbb{R}^d} f(\theta), \qquad f(\theta) = \frac{1}{n} \sum_{i=1}^{n} \ell_i(\theta)$$
+      </div>
+      <div class="bld" data-scene="1">
+        <div class="notation">
+          <div class="nt"><div class="sym">\(\theta \in \mathbb{R}^d\)</div><div class="def">Todos los parámetros del modelo, apilados en un vector de dimensión d</div></div>
+          <div class="nt"><div class="sym">\(\ell_i(\theta)\)</div><div class="def">La pérdida: qué tan mal predice θ el dato número i</div></div>
+          <div class="nt"><div class="sym">\(f(\theta)\)</div><div class="def">El riesgo empírico: el promedio de la pérdida sobre los n datos</div></div>
+          <div class="nt"><div class="sym">\(\nabla f(\theta)\)</div><div class="def">El gradiente: la dirección local de mayor crecimiento de f</div></div>
+          <div class="nt"><div class="sym">\(\alpha\)</div><div class="def">La tasa de aprendizaje</div></div>
+          <div class="nt"><div class="sym">\(k\)</div><div class="def">El número de iteración: θ₀, θ₁, θ₂, … es la sucesión del método</div></div>
+        </div>
+        <div class="eq-note">Este es todo el vocabulario de la charla. La forma de <b>suma sobre los datos</b> es la clave de todo</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · EL PAISAJE DE PÉRDIDA (anchor) -->
+  <section class="slide fill" data-scenes="3">
+    <div class="wrap">
+      <span class="kicker"><span class="dot"></span>La imagen mental</span>
+      <h2>El <span class="accent">paisaje</span> de pérdida.</h2>
+      <div class="hook"><span class="q">¿Por qué me importa?</span>Esta imagen es lo que significa “entrenar”: <b>caminar sobre una superficie buscando el punto más bajo</b>. Todo lo que sigue es distintas maneras de caminar.</div>
+      <div id="anchor" class="anchor">
+        <div class="col">
+          <div class="panel-label">Los datos y una recta candidata y = θ₀ + θ₁·x</div>
+          <div class="anchor-fitwrap"><canvas class="anchor-fit"></canvas></div>
+        </div>
+        <div class="col">
+          <div class="panel-label">Cada punto (θ₀, θ₁) es una recta. La altura es su error f(θ)</div>
+          <div class="anchor-plotwrap"><div class="anchor-plot"></div><img class="pg-print" alt="" /></div>
+        </div>
+      </div>
+      <div class="pg-caption anchor-caption" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+  <!-- 4 · DE TAYLOR AL DESCENSO -->
+  <section class="slide" data-scenes="2">
+    <div class="wrap">
+      <span class="kicker gd"><span class="dot"></span>Descenso de gradiente · la derivación</span>
+      <h2>Del polinomio de Taylor <span class="accent">al método</span>.</h2>
+      <div class="eq-hero">
+        $$f(\theta_k + \Delta) = f(\theta_k) + \nabla f(\theta_k)^{\top} \Delta + \mathcal{O}\!\left(\lVert \Delta \rVert^2\right)$$
+      </div>
+      <div class="eq-note">El modelo local de primer orden, la misma herramienta con la que el curso construye sus métodos</div>
+      <div class="bld" data-scene="1">
+        <div class="eq-hero" style="margin-top:18px">
+          $$\Delta = -\alpha\, \nabla f(\theta_k) \quad \Rightarrow \quad f(\theta_{k+1}) \approx f(\theta_k) - \alpha \lVert \nabla f(\theta_k) \rVert^2 \le f(\theta_k)$$
+        </div>
+        <div class="eq-note">Moverse <b>contra el gradiente</b> es lo que más reduce el modelo local</div>
+      </div>
+      <div class="bld" data-scene="2">
+        <div class="eq-hero big" style="margin-top:18px; border-color: rgba(159,178,211,.45)">
+          $$\theta_{k+1} = \theta_k - \alpha\, \nabla f(\theta_k)$$
+        </div>
+        <div class="eq-note"><b>α</b> es la única perilla, y la más delicada: la siguiente demo lo muestra</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · GD EN ACCIÓN -->
+  <section class="slide fill" data-scenes="4">
+    <div class="wrap">
+      <span class="kicker gd"><span class="dot"></span>Descenso de gradiente · demo</span>
+      <h2>Todo depende de <span class="m-gd">α</span>.</h2>
+      <div class="eq-strip">
+        <div class="eq">\(\theta_{k+1} = \theta_k - \alpha\, \nabla f(\theta_k)\)</div>
+        <div class="eq">El mismo tazón de la recta: dos parámetros, altura = error</div>
+      </div>
+      <div class="pg" data-cfg="gd-alpha"></div>
+    </div>
+  </section>
+
+  <!-- 6 · EL COSTO DEL GRADIENTE EXACTO -->
+  <section class="slide" data-scenes="1">
+    <div class="wrap">
+      <span class="kicker gd"><span class="dot"></span>La falla de GD</span>
+      <h2>El gradiente exacto <span class="accent">recorre todos los datos</span> en cada iteración.</h2>
+      <div class="hook"><span class="q">¿Por qué me importa?</span>Un modelo de lenguaje moderno se entrena con <b>miles de millones de ejemplos</b>. Con gradiente exacto, una sola iteración tardaría horas, y se necesitan cientos de miles de iteraciones.</div>
+      <div class="eq-hero">
+        $$\nabla f(\theta) = \frac{1}{n} \sum_{i=1}^{n} \nabla \ell_i(\theta) \qquad \Rightarrow \qquad \mathcal{O}(n\,d)\ \text{operaciones por iteración}$$
+      </div>
+      <div class="bld" data-scene="1">
+        <div class="svgbox" style="margin-top:4px">
+          <svg viewBox="0 0 900 68" role="img" aria-label="El costo de una sola iteración del gradiente exacto: una pasada completa por el millón de datos">
+            <text x="0" y="38" font-family="IBM Plex Sans" font-size="15" fill="#9DAAC8">una iteración</text>
+            <rect x="150" y="20" width="690" height="28" rx="6" fill="rgba(159,178,211,.28)" stroke="#9FB2D3" stroke-width="1"/>
+            <text x="495" y="39" font-family="JetBrains Mono" font-size="13" fill="#EDF2FF" text-anchor="middle">una pasada completa · n = 1 000 000 términos</text>
+          </svg>
+        </div>
+        <div class="eq-note" style="margin-top:18px; font-size: clamp(14.5px, 1.5vw, 17px); color: var(--muted)">¿Y si <b style="color: var(--c-sgd)">no</b> miráramos todos los datos antes de actualizar los parámetros?</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 · SGD: LA IDEA -->
+  <section class="slide" data-scenes="1">
+    <div class="wrap">
+      <span class="kicker sgd"><span class="dot"></span>SGD · la idea</span>
+      <h2>Un gradiente <span class="m-sgd">muestreado</span> sigue apuntando bien, en promedio.</h2>
+      <div class="eq-hero">
+        $$\mathbb{E}_{i \sim \mathcal{U}\{1,\dots,n\}}\!\left[ \nabla \ell_i(\theta) \right] = \nabla f(\theta)$$
+      </div>
+      <div class="eq-note">El estimador es <b>insesgado</b>: barato no significa apuntar mal, significa apuntar con ruido</div>
+      <div class="bld" data-scene="1">
+        <div class="eq-hero big" style="margin-top:18px; border-color: rgba(56,189,248,.4)">
+          $$\theta_{k+1} = \theta_k - \alpha_k\, \nabla \ell_{i_k}(\theta_k), \qquad i_k \text{ al azar}$$
+        </div>
+        <div class="eq-note">Un dato por iteración: la iteración cuesta <b>n veces menos</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · SGD EN ACCIÓN -->
+  <section class="slide fill" data-scenes="3">
+    <div class="wrap">
+      <span class="kicker sgd"><span class="dot"></span>SGD · demo</span>
+      <h2>Por época, <span class="m-sgd">SGD baja más rápido</span> que GD.</h2>
+      <div class="eq-strip">
+        <div class="eq">\(\theta_{k+1} = \theta_k - \alpha\, \nabla \ell_{i_k}(\theta_k)\)</div>
+        <div class="eq">Época = una pasada completa por los 80 datos</div>
+      </div>
+      <div class="pg" data-cfg="sgd-vs"></div>
+    </div>
+  </section>
+
+  <!-- 9 · EL MINI-LOTE -->
+  <section class="slide" data-scenes="2">
+    <div class="wrap">
+      <span class="kicker sgdb"><span class="dot"></span>SGD · el mini-lote</span>
+      <h2>Entre un dato y todos los datos, el <span class="m-sgdb">mini-lote</span>.</h2>
+      <p class="lead">Un dato es barato pero ruidoso, los n datos exactos pero carísimos. El mini-lote es el punto medio: un subconjunto B de los n = 80 datos.</p>
+      <div class="eq-hero">
+        $$\nabla f_B(\theta) = \frac{1}{\lvert B \rvert} \sum_{i \in B} \nabla \ell_i(\theta)$$
+      </div>
+      <div class="eq-note">|B| = tamaño del mini-lote, entre 1 y n</div>
+      <div class="bld" data-scene="1">
+        <div class="eq-hero" style="margin-top:18px; border-color: rgba(125,211,252,.45)">
+          $$\theta_{k+1} = \theta_k - \alpha\, g_k, \qquad g_k = \nabla f_{B_k}(\theta_k)$$
+        </div>
+        <div class="eq-note">Misma regla que GD, con el gradiente del mini-lote \(g_k\) en vez del exacto</div>
+      </div>
+      <div class="bld" data-scene="2">
+        <div class="grid3">
+          <div class="card"><div class="h">Sigue insesgado</div><p>El promedio no cambia la esperanza: \(\mathbb{E}[\nabla f_B] = \nabla f\). El mismo argumento de insesgadez de SGD sobrevive al promedio.</p></div>
+          <div class="card"><div class="h">Menos ruido</div><p>La varianza del gradiente cae como \(1/\lvert B \rvert\): a mayor lote, menos temblor en la dirección.</p></div>
+          <div class="card"><div class="h">Cuesta más por iteración</div><p>El trabajo por iteración es \(\mathcal{O}(\lvert B \rvert\, d)\), y una época son \(n/\lvert B \rvert\) iteraciones.</p></div>
+        </div>
+        <div class="eq-note" style="margin-top:16px">El tamaño del lote gradúa el equilibrio entre ruido y costo, la decisión de la próxima diapositiva</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · MINI-LOTES Y PARADA TEMPRANA -->
+  <section class="slide fill" data-scenes="3">
+    <div class="wrap">
+      <span class="kicker sgdb"><span class="dot"></span>SGD en la práctica</span>
+      <h2>Dos perillas: el <span class="m-sgdb">lote</span> y el <span class="m-good">momento de parar</span>.</h2>
+      <div class="hook"><span class="q">¿Por qué me importa?</span>La memoria de una GPU es finita (el lote debe caber en ella) y un modelo entrenado de más <b>memoriza el ruido</b> de sus datos. Estas dos decisiones se toman en cada entrenamiento real.</div>
+      <div class="eq-strip">
+        <div class="eq">\(g_k = \frac{1}{\lvert B_k \rvert} \sum_{i \in B_k} \nabla \ell_i(\theta_k)\)</div>
+        <div class="eq">\(\operatorname{Var}[g_k] \propto \dfrac{1}{\lvert B_k \rvert}\)</div>
+      </div>
+      <div class="pg" data-cfg="batches"></div>
+    </div>
+  </section>
+
+  <!-- 11 · MOMENTUM -->
+  <section class="slide" data-scenes="1">
+    <div class="wrap">
+      <span class="kicker mom"><span class="dot"></span>La variante final · Momentum</span>
+      <h2>La bola pesada de <span class="m-mom">Polyak</span>.</h2>
+      <p class="lead">GD no tiene memoria, usa solo el gradiente actual. En un valle angosto eso lo pone a cruzar de pared a pared en vez de avanzar. El remedio es recordar.</p>
+      <div class="eq-hero" style="border-color: rgba(255,180,84,.45)">
+        $$v_{k+1} = \beta\, v_k + g_k, \qquad \theta_{k+1} = \theta_k - \alpha\, v_{k+1}$$
+      </div>
+      <div class="eq-note">β ∈ [0, 1) es cuánta memoria: con β = 0 no hay memoria y Momentum es GD</div>
+      <div class="bld" data-scene="1">
+        <div class="grid3">
+          <div class="card"><div class="h">Cancela lo alternante</div><p>Los rebotes de pared a pared alternan de signo y se anulan al sumarse en la velocidad.</p></div>
+          <div class="card"><div class="h">Acumula lo persistente</div><p>La componente que siempre apunta igual se compone hacia \(\alpha\, g/(1-\beta)\). Con β = 0.9 y el mismo α, hasta 10 veces el avance de GD.</p></div>
+          <div class="card"><div class="h">Cuesta casi nada</div><p>Una evaluación de gradiente por iteración, igual que GD, y dos líneas más de código.</p></div>
+        </div>
+        <div class="eq-note" style="margin-top:16px">La prueba: un valle que dobla, la próxima diapositiva</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 · ROSENBROCK Y LA GRAN CARRERA -->
+  <section class="slide fill" data-scenes="2">
+    <div class="wrap">
+      <span class="kicker"><span class="dot"></span>El banco de pruebas · la carrera</span>
+      <h2>Rosenbrock: un valle <span class="accent">que dobla</span>.</h2>
+      <div class="hook"><span class="q">¿Por qué me importa?</span>¿Cómo se comparan optimizadores sin esperar horas de entrenamiento? Con <b>funciones de prueba</b>: mínimo conocido, dificultad conocida, resultados reproducibles. Esta es la más famosa, y sobre ella corren hoy los tres métodos.</div>
+      <div class="eq-strip">
+        <div class="eq">\(f(x,y) = (1-x)^2 + 100\,(y - x^2)^2\)</div>
+        <div class="eq">Mínimo único en (1, 1) · un valle plano que se curva</div>
+      </div>
+      <div class="pg" data-cfg="rosen-race"></div>
+    </div>
+  </section>
+
+  <!-- 13 · IMPLEMENTACIÓN NUMPY -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="kicker mom"><span class="dot"></span>Implementación</span>
+      <h2>La implementación, en <span class="accent">NumPy puro</span>.</h2>
+      <div class="code2">
+        <div class="codebox">
+          <div class="cb-h"><span class="swatch"></span>optimizers.py · la regla de actualización</div>
+          <pre><span class="kw">def</span> <span class="fn">gd_step</span>(theta, g, state, lr=<span class="nm">0.01</span>):
+    theta = theta - lr * g
+    <span class="kw">return</span> theta, state
+
+<span class="kw">def</span> <span class="fn">momentum_step</span>(theta, g, v, lr=<span class="nm">0.01</span>, beta=<span class="nm">0.9</span>):
+    v = beta * v + g
+    theta = theta - lr * v
+    <span class="kw">return</span> theta, v</pre>
+        </div>
+        <div class="codebox">
+          <div class="cb-h"><span class="swatch"></span>problems.py · el gradiente de mini-lote (SGD)</div>
+          <pre><span class="cm"># SGD reutiliza gd_step; lo único que cambia</span>
+<span class="cm"># es el origen de g: un mini-lote, no los n datos.</span>
+
+<span class="kw">def</span> <span class="fn">minibatch_grad</span>(self, theta, rng, batch):
+    idx = rng.integers(<span class="nm">0</span>, self.n, size=batch)
+    r = self._residuals(theta, idx)
+    <span class="kw">return</span> np.array([r.mean(),
+                     (r * self.A[idx]).mean()])</pre>
+        </div>
+      </div>
+      <div class="eq-note" style="margin-top:14px">NumPy puro, sin dependencias · las demos de esta charla reproducen estas mismas reglas (paridad numérica ≤ 10⁻¹²) · código completo en la entrega</div>
+    </div>
+  </section>
+
+  <!-- 14 · EXPERIMENTO REAL -->
+  <section class="slide fill">
+    <div class="wrap">
+      <span class="kicker mom"><span class="dot"></span>Experimento</span>
+      <h2>Un problema real: <span class="accent">billetes falsos</span>.</h2>
+      <div class="eq-strip">
+        <div class="eq">\(f(\theta) = \frac{1}{n}\sum_{i=1}^{n} \ell_i(\theta) + \frac{\lambda}{2}\lVert\theta\rVert^2\), regresión logística</div>
+      </div>
+      <div class="figwrap">
+        <div class="figimg"><img src="assets/fig-logistic-dark.png" alt="Curvas de pérdida contra épocas para los métodos sobre el conjunto banknote" /></div>
+        <div class="figside stag">
+          <div class="card"><div class="h">Datos</div><p>UCI Banknote Authentication: 1372 billetes, 4 características de la imagen (wavelets), etiqueta genuino/falso.</p></div>
+          <div class="card"><div class="h">Protocolo</div><p>Mismo presupuesto de épocas para todos. El eje x cuenta pasadas por los datos, no iteraciones: la comparación honesta.</p></div>
+          <div class="card"><div class="h">Lectura</div><p>SGD domina desde la primera época y el lote de 16 da una curva visiblemente más limpia. Con rasgos normalizados el tazón queda bien acondicionado, así que Momentum aporta poco aquí: su ventaja vive en los cañones.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · CONCLUSIONES -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="kicker"><span class="dot"></span>Conclusiones</span>
+      <h2>Cuatro ideas <span class="accent">para llevarse</span>.</h2>
+      <ol class="steps">
+        <li><b>El trato de SGD gana:</b> cambiar precisión por costo en cada iteración permite dar miles de iteraciones más con el mismo presupuesto, y el estimador insesgado garantiza que en promedio se avanza.</li>
+        <li><b>El lote es la perilla de la varianza:</b> promediar |B| muestras corta el ruido como 1/|B| y conserva casi todo el ahorro. Se elige tan grande como la memoria lo permita.</li>
+        <li><b>Detenerse temprano es regularización gratuita:</b> el error que importa es el de validación, y su mínimo llega antes que el del entrenamiento.</li>
+        <li><b>Momentum repara la geometría:</b> una memoria corta de gradientes cancela el zigzag de los cañones. Es el corazón del optimizador por defecto en la práctica moderna.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 16 · REFERENCIAS -->
+  <section class="slide">
+    <div class="wrap">
+      <span class="kicker"><span class="dot"></span>Referencias · formato IEEE</span>
+      <h2>Referencias</h2>
+      <ol class="refs">
+        <li>H. Robbins y S. Monro, <span class="ttl">"A stochastic approximation method,"</span> <span class="src">Ann. Math. Statist.</span>, vol. 22, n.º 3, pp. 400-407, 1951.</li>
+        <li>B. T. Polyak, <span class="ttl">"Some methods of speeding up the convergence of iteration methods,"</span> <span class="src">USSR Comput. Math. Math. Phys.</span>, vol. 4, n.º 5, pp. 1-17, 1964.</li>
+        <li>L. Prechelt, <span class="ttl">"Early stopping, but when?"</span> en <span class="src">Neural Networks: Tricks of the Trade</span>, Berlín: Springer, 1998, pp. 55-69.</li>
+        <li>S. Ruder, <span class="ttl">"An overview of gradient descent optimization algorithms,"</span> arXiv:1609.04747, 2016.</li>
+        <li>L. Bottou, F. E. Curtis y J. Nocedal, <span class="ttl">"Optimization methods for large-scale machine learning,"</span> <span class="src">SIAM Review</span>, vol. 60, n.º 2, pp. 223-311, 2018.</li>
+        <li>V. Lohweg, <span class="ttl">"Banknote authentication,"</span> UCI Machine Learning Repository, 2013.</li>
+      </ol>
+    </div>
+  </section>
+
+</div>
+
+<div class="chrome left">MA-1006 · <b>Ariel Arévalo Alvarado</b></div>
+<div class="chrome right"><span id="cur">01</span> / <span id="tot">16</span></div>
+
+<script>
+  // ---- deck engine: free scroll + JS settle + scene tracks ----
+  const deck = document.getElementById('deck');
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  let i = 0;
+  let scene = 0;
+  const progress = document.getElementById('progress');
+  const cur = document.getElementById('cur');
+  const tot = document.getElementById('tot');
+  const dots = document.getElementById('scenedots');
+  tot.textContent = String(slides.length).padStart(2, '0');
+  const pad = n => String(n).padStart(2, '0');
+
+  const maxScenes = el => parseInt(el.dataset.scenes || '0', 10);
+
+  // Slides with scenes span (N+1) viewport-heights: pin their content.
+  slides.forEach(s => {
+    const N = maxScenes(s);
+    if (!N) return;
+    s.style.height = 'calc(' + (N + 1) + ' * 100vh)';
+    const sticky = document.createElement('div');
+    sticky.className = 'sticky';
+    while (s.firstChild) sticky.appendChild(s.firstChild);
+    s.appendChild(sticky);
+  });
+
+  function applyScene() {
+    const s = slides[i];
+    s.querySelectorAll('.bld').forEach(el => {
+      el.classList.toggle('on', scene >= parseInt(el.dataset.scene, 10));
+    });
+    const total = maxScenes(s);
+    dots.innerHTML = '';
+    if (total > 0) {
+      for (let k = 1; k <= total; k++) {
+        const d = document.createElement('i');
+        if (k <= scene) d.classList.add('on');
+        dots.appendChild(d);
+      }
+    }
+    document.dispatchEvent(new CustomEvent('scenechange', { detail: { slide: s, index: i, scene } }));
+  }
+
+  // Consumed once by activate() below: lets a cross-slide backward move land
+  // on the previous slide's LAST scene instead of activate()'s default of 0.
+  let pendingScene = null;
+
+  function activate(n) {
+    if (n === i && slides[n].classList.contains('active')) return;
+    i = n;
+    scene = (pendingScene && pendingScene.index === n) ? pendingScene.scene : 0;
+    pendingScene = null;
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    cur.textContent = pad(i + 1);
+    if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+    document.dispatchEvent(new CustomEvent('slidechange', { detail: { slide: slides[i], index: i } }));
+    applyScene();
+  }
+
+  function setScene(k) {
+    if (k === scene) return;
+    scene = k;
+    applyScene();
+  }
+
+  // Scroll position owns both the active slide and its scene. While a
+  // programmatic smooth scroll is in flight, scene recomputation is locked
+  // so it cannot fight the animation it just started.
+  let scrollLock = false;
+  let settleTarget = null;
+
+  function updateFromScroll() {
+    const probe = deck.scrollTop + window.innerHeight * 0.5;
+    let n = 0;
+    for (let k = 0; k < slides.length; k++) {
+      if (probe >= slides[k].offsetTop) n = k;
+    }
+    activate(n);
+    const N = maxScenes(slides[i]);
+    if (N > 0 && !scrollLock) {
+      const local = deck.scrollTop - slides[i].offsetTop;
+      setScene(Math.max(0, Math.min(N, Math.round(local / window.innerHeight))));
+    }
+  }
+
+  // All scene/slide boundaries, in document order.
+  function boundaryList() {
+    const out = [];
+    const vh = window.innerHeight;
+    for (const s of slides) {
+      const N = maxScenes(s);
+      for (let k = 0; k <= N; k++) out.push(s.offsetTop + k * vh);
+    }
+    return out;
+  }
+
+  let settledPos = 0; // the boundary we last rested at
+
+  function arriveAt(top) {
+    settledPos = top;
+    settleTarget = null;
+    scrollLock = false;
+    document.body.classList.remove('scrolling');
+    updateFromScroll();
+  }
+
+  function scrollToScene(n, k, smooth) {
+    scrollLock = true;
+    settleTarget = slides[n].offsetTop + k * window.innerHeight;
+    deck.scrollTo({ top: settleTarget, behavior: smooth === false ? 'auto' : 'smooth' });
+    if (smooth === false) arriveAt(settleTarget);
+  }
+
+  function go(n) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    scrollToScene(n, 0);
+  }
+
+  function forward() {
+    if (window.PG && PG.consumeForwardPress(slides[i])) return;
+    if (scene < maxScenes(slides[i])) { setScene(scene + 1); scrollToScene(i, scene); }
+    else go(i + 1);
+  }
+  // Mirrors forward(): moves exactly one boundary backward in the same
+  // slide/scene boundary sequence. Mid-scene, that rewinds one scene of the
+  // current slide; at scene 0, it lands on the previous slide's last scene.
+  function back() {
+    if (scene > 0) { setScene(scene - 1); scrollToScene(i, scene); }
+    else if (i > 0) {
+      const prevMax = maxScenes(slides[i - 1]);
+      pendingScene = { index: i - 1, scene: prevMax };
+      scrollToScene(i - 1, prevMax);
+    }
+  }
+
+  // settle: when the scroll goes idle, glide to a boundary. Direction-aware:
+  // any real movement advances at least one boundary in that direction, so a
+  // single wheel click changes exactly one scene instead of rubber-banding.
+  let settleT = 0;
+  function settle() {
+    clearTimeout(settleT);
+    const top = deck.scrollTop;
+    if (settleTarget !== null) {
+      if (Math.abs(top - settleTarget) < 4) { arriveAt(settleTarget); return; }
+      settleTarget = null; // glide was interrupted: fall through and re-settle
+    }
+    const bs = boundaryList();
+    let target = bs[0], bestD = Infinity;
+    for (const b of bs) {
+      const d = Math.abs(b - top);
+      if (d < bestD) { bestD = d; target = b; }
+    }
+    if (target === settledPos && Math.abs(top - settledPos) > 40) {
+      const idx = bs.indexOf(settledPos);
+      target = top > settledPos
+        ? bs[Math.min(bs.length - 1, idx + 1)]
+        : bs[Math.max(0, idx - 1)];
+    }
+    if (Math.abs(top - target) < 4) { arriveAt(target); return; }
+    settleTarget = target;
+    scrollLock = true;
+    deck.scrollTo({ top: target, behavior: 'smooth' });
+  }
+  deck.addEventListener('scroll', () => {
+    document.body.classList.add('scrolling');
+    const denom = deck.scrollHeight - deck.clientHeight;
+    if (denom > 0) progress.style.width = (deck.scrollTop / denom) * 100 + '%';
+    updateFromScroll();
+    clearTimeout(settleT);
+    settleT = setTimeout(settle, 170);
+  }, { passive: true });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target instanceof Element && e.target.matches('input, select, textarea, button')) return;
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); forward(); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); back(); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key.toLowerCase() === 'f') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+  deck.addEventListener('click', (e) => {
+    if (e.target.closest('a, .pg, button, input, label, .anchor')) return;
+    if (e.clientX > window.innerWidth / 2) forward(); else back();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && window.PG) PG.pauseAll();
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    renderMathInElement(document.body, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\(', right: '\\)', display: false },
+      ],
+      trust: (ctx) => ctx.command === '\\htmlClass',
+      strict: 'ignore',
+      throwOnError: false,
+    });
+    if (window.PG) PG.boot();
+    const h = parseInt((location.hash || '').replace('#', ''), 10);
+    const start = (h >= 1 && h <= slides.length) ? h - 1 : 0;
+    if (start > 0) scrollToScene(start, 0, false);
+    activate(start);
+    progress.style.width = (start / (slides.length - 1)) * 100 + '%';
+  });
+</script>
+</body>
+</html>

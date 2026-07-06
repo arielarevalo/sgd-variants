@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.pdf
+.DS_Store

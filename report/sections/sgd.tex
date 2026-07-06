@@ -1,0 +1,23 @@
+\section{Descenso de gradiente estocástico}\label{sec:sgd}
+
+\subsection{El estimador insesgado}
+
+La salida al problema del costo está en la forma de promedio de~\eqref{eq:erm}. Si el índice $i$ se sortea uniformemente en $\{1, \dots, n\}$, el gradiente de un solo dato es un estimador insesgado del gradiente completo:
+\begin{equation}
+  \E\bigl[\nabla\ell_i(\theta)\bigr] = \frac{1}{n}\sum_{j=1}^{n} \nabla\ell_j(\theta) = \nabla f(\theta).
+  \label{eq:insesgado}
+\end{equation}
+Barato no significa apuntar mal: significa apuntar bien en promedio, con ruido. El descenso de gradiente estocástico es la misma actualización~\eqref{eq:gd} alimentada con ese estimador,
+\begin{equation}
+  \theta_{k+1} = \theta_k - \alpha\,\nabla\ell_{i_k}(\theta_k),
+  \label{eq:sgd}
+\end{equation}
+con $i_k$ sorteado en cada iteración. La iteración cuesta $O(d)$: $n$ veces menos que la de GD.
+
+\subsection{El precio: varianza}
+
+Lo que se paga es varianza, y no desaparece cerca del mínimo. Con tasa $\alpha$ fija, el iterado no converge a un punto: termina orbitando en una nube alrededor del óptimo cuyo radio es proporcional a $\alpha$. El resultado clásico de Robbins y Monro~\cite{robbins1951} da la salida teórica: si la tasa decrece cumpliendo $\sum_k \alpha_k = \infty$ y $\sum_k \alpha_k^2 < \infty$, el método converge al óptimo a pesar del ruido. En la práctica se suele preferir una tasa fija por tramos, que se reduce manualmente, aceptando el piso de ruido a cambio de velocidad.
+
+\subsection{La comparación honesta}
+
+Una iteración de GD y una de SGD no cuestan lo mismo, así que compararlos por iteraciones es engañoso. La comparación justa es por evaluaciones de gradiente o, equivalentemente, por épocas: mismo cómputo total gastado. GD consume una época entera por iteración, de modo que un presupuesto de 12 épocas se traduce en 12 iteraciones. SGD, sobre el problema sintético con $n = 80$, realiza 80 iteraciones por época, de modo que el mismo presupuesto se traduce en 960 iteraciones. En ese experimento, con $\alpha = 0.8$ para GD y $\alpha = 0.05$ para SGD, SGD ya ha reducido la mayor parte de la pérdida antes de completar su primera pasada por los datos, cuando GD apenas ha realizado su primera actualización. Ese es el trato central del método: se cambia precisión por iteración a cambio de número de iteraciones, y a gran escala el trato gana.

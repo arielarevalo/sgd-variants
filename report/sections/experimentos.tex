@@ -1,0 +1,82 @@
+\section{Experimentos y resultados}\label{sec:exp}
+
+Se presentan cinco experimentos, ordenados del más controlado al más realista. Los dos primeros usan superficies con mínimo conocido, donde el comportamiento observado puede contrastarse contra la teoría de las Secciones~\ref{sec:gd} y~\ref{sec:momentum}. Los tres restantes usan datos reales.
+
+\subsection{El valle mal condicionado}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig-ravine-light.png}
+  \caption{GD ($\alpha = 0.076$, 90 iteraciones) y Momentum ($\alpha = 0.02$, $\beta = 0.9$, 150 iteraciones) sobre la cuadrática $f(x,y) = \frac{1}{2}(x^2 + 25y^2)$, desde $(-2, 1)$.}
+  \label{fig:ravine}
+\end{figure}
+
+La Fig.~\ref{fig:ravine} muestra el valle cuadrático con $\kappa = 25$. Para avanzar en la dirección blanda, GD necesita operar cerca de su límite de estabilidad~\eqref{eq:estabilidad}, que aquí es $2/25 = 0.08$: con $\alpha = 0.076$, el $95\,\%$ del límite, el factor de error en la dirección rígida es casi $-1$ y la trayectoria rebota de pared a pared, el zigzag clásico. Tras 90 iteraciones termina en $f \approx 1.4 \times 10^{-6}$. Momentum, con una tasa cuatro veces menor ($\alpha = 0.02$, $\beta = 0.9$), amortigua la componente alternante y rueda por el fondo del valle: alcanza $f \approx 6.3 \times 10^{-8}$ en 150 iteraciones con una trayectoria visiblemente limpia. La geometría que a GD le cobra el zigzag es exactamente la que Momentum repara, como predice la mejora de $\kappa$ a $\sqrt{\kappa}$ de la Sección~\ref{sec:momentum}.
+
+\subsection{La carrera sobre Rosenbrock}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig-rosenbrock-light.png}
+  \caption{Los tres métodos sobre Rosenbrock con la misma $\alpha = 0.0016$ y 600 iteraciones, desde $(-1.4, 1.8)$. Las curvas de nivel están en escala logarítmica. GD termina en $f \approx 0.83$, la variante con ruido inyectado en $f \approx 9.5 \times 10^{-3}$ (véase el texto) y Momentum en $f \approx 4.7 \times 10^{-5}$, prácticamente en el mínimo $(1,1)$.}
+  \label{fig:rosen}
+\end{figure}
+
+La función de Rosenbrock, $f(x,y) = (1-x)^2 + 100\,(y - x^2)^2$, con mínimo único en $(1,1)$, es el banco de pruebas clásico: su valle es fácil de encontrar y difícil de recorrer, porque el piso es casi plano y se curva, mientras que las paredes parabólicas son empinadas. Las paredes atan las manos con la tasa: un $\alpha$ lo bastante grande para avanzar de verdad por el piso sale catapultado, así que debe ser diminuto, $\alpha = 0.0016$. La Fig.~\ref{fig:rosen} muestra la carrera: los tres métodos con la misma $\alpha$ y 600 iteraciones desde $(-1.4, 1.8)$.
+
+GD baja al valle de inmediato y luego se arrastra. Sin memoria, su avance por iteración es $\alpha$ por el gradiente actual, y el gradiente del piso es diminuto: termina en $f \approx 0.83$, todavía lejos del mínimo. Momentum acumula los gradientes del piso, que apuntan consistentemente a lo largo del valle, conserva la velocidad en la curva y llega prácticamente al mínimo: $f \approx 4.7 \times 10^{-5}$, cuatro órdenes de magnitud por debajo de GD con el mismo presupuesto. El terreno plano y curvo es exactamente donde la memoria paga: ahí avanzar es cuestión de distancia acumulada, y el único que acumula es Momentum.
+
+La curva etiquetada SGD merece una aclaración de honestidad experimental. Sobre una función de prueba pura no hay datos que muestrear, así que el estimador estocástico se simula inyectando al gradiente exacto un ruido gaussiano proporcional a su norma ($15\,\%$, semilla fija). En las paredes, donde el gradiente es enorme, el ruido también lo es, y con la semilla de la figura una de esas sacudidas lanza el iterado por encima del tazón hasta la otra rama del valle, donde queda temblando alrededor de $f \approx 9.5 \times 10^{-3}$ sin asentarse. Ese salto es suerte de la semilla, no una propiedad del método: en corridas con cinco semillas distintas el mismo esquema termina entre $f \approx 0.67$ y $f \approx 1.3$, comparable o peor que GD. La lección es doble: el ruido sin estructura no aporta información en una función pura (el valor de SGD vive en las sumas sobre datos), y el contraste que sí es estable entre corridas es el de GD contra Momentum, porque ambos son deterministas.
+
+\subsection{Regresión logística sobre datos reales}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig-logistic-light.png}
+  \caption{Riesgo empírico contra épocas en la regresión logística regularizada sobre banknote ($n = 1372$), con presupuesto de 30 épocas: GD ($\alpha = 0.5$), SGD con $|B| = 1$ ($\alpha = 0.05$), SGD con $|B| = 16$ ($\alpha = 0.2$) y Momentum con $|B| = 16$ ($\alpha = 0.02$, $\beta = 0.9$).}
+  \label{fig:logistic}
+\end{figure}
+
+\begin{table}[t]
+  \caption{Exactitud de clasificación al final de las corridas de la Fig.~\ref{fig:logistic}, sobre el conjunto completo ($n = 1372$).}
+  \label{tab:acc}
+  \centering
+  \begin{tabular}{lccc}
+    \toprule
+    Método & $\alpha$ & $|B|$ & Exactitud \\
+    \midrule
+    GD & 0.5 & $n$ & 0.9453 \\
+    SGD & 0.05 & 1 & 0.9905 \\
+    SGD & 0.2 & 16 & 0.9818 \\
+    Momentum ($\beta = 0.9$) & 0.02 & 16 & 0.9818 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+El experimento central usa el conjunto UCI Banknote Authentication~\cite{lohweg2013}: 1372 billetes, cada uno con cuatro características extraídas de su imagen mediante wavelets y una etiqueta de genuino o falso. Se entrena una regresión logística con penalización $\ell_2$ pequeña ($\lambda = 10^{-4}$) sobre los rasgos estandarizados más un sesgo, cinco parámetros en total. La pérdida logística es convexa y la penalización la vuelve fuertemente convexa: hay un único mínimo global, y las garantías de las secciones anteriores aplican.
+
+La Fig.~\ref{fig:logistic} compara los métodos con el eje horizontal en épocas, la comparación honesta de la Sección~\ref{sec:sgd}. Tres lecturas. Primero, los métodos estocásticos dominan a GD desde la primera pasada: GD realiza una iteración por época, apenas 30 actualizaciones en todo el presupuesto, mientras que SGD con $|B| = 1$ realiza 1372 iteraciones por época, unas $41\,000$ en total. Segundo, la curva de $|B| = 16$ es visiblemente más limpia que la de $|B| = 1$, como predice la varianza proporcional a $1/|B|$ de la Sección~\ref{sec:minilotes}, sin perder velocidad por época y tolerando además una tasa cuatro veces mayor. Tercero, Momentum no aporta aquí: con los rasgos estandarizados el problema queda bien acondicionado y no hay cañón que reparar, así que su curva es comparable a la de SGD con el mismo lote. Es el contraste honesto con Rosenbrock: la ventaja de Momentum es geométrica, no universal.
+
+La Tabla~\ref{tab:acc} resume la exactitud de clasificación al final de cada corrida. Dos advertencias de lectura: el experimento no separa un conjunto de prueba, así que las cifras miden ajuste sobre los mismos datos, no generalización; y la diferencia entre las tres variantes estocásticas (alrededor de un punto porcentual) es del orden del ruido de una corrida individual y no debe sobreinterpretarse. La lectura robusta es la brecha grande: dentro del mismo presupuesto de 30 épocas, cualquiera de las variantes estocásticas resuelve el problema mientras que GD queda lejos de converger.
+
+\subsection{Sensibilidad a la tasa de aprendizaje}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig-lr-sensitivity-light.png}
+  \caption{Riesgo tras 10 épocas sobre banknote, para 14 valores de $\alpha$ entre $10^{-4}$ y $10^{0.5}$, con $|B| = 16$: SGD y SGD con Momentum ($\beta = 0.9$). Ambos ejes en escala logarítmica.}
+  \label{fig:lr}
+\end{figure}
+
+La Fig.~\ref{fig:lr} barre la tasa de aprendizaje sobre el mismo problema y deja dos lecturas. Primero, la forma general de ambas curvas: una meseta amplia de valores útiles con deterioro hacia los extremos. Elegir $\alpha$ no exige precisión de laboratorio, pero equivocarse por órdenes de magnitud sí cuesta. Segundo, la curva de Momentum es, a grandes rasgos, la de SGD desplazada una década hacia la izquierda: como la velocidad se compone hacia $g/(1-\beta) = 10\,g$ con $\beta = 0.9$, el paso efectivo se amplifica por diez. Momentum alcanza su mejor riesgo cerca de $\alpha \approx 0.3$ y se degrada pasado $\alpha \approx 1$, donde SGD solo todavía mejora. En este problema bien acondicionado ambos alcanzan mínimos comparables, alrededor de $4 \times 10^{-2}$: Momentum no llega más abajo, llega con una tasa diez veces menor, en línea con la subsección anterior.
+
+\subsection{Parada temprana}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{fig-early-stopping-light.png}
+  \caption{Errores de entrenamiento y validación para un polinomio de grado 9 ajustado por GD ($\alpha = 0.06$) a 14 datos, con 20 datos de validación. El mínimo de validación ocurre en la iteración 130 de 800.}
+  \label{fig:early}
+\end{figure}
+
+El último experimento aísla la parada temprana con un modelo de capacidad sobrada: un polinomio de grado 9 (diez coeficientes) ajustado a solo 14 datos de entrenamiento, con 20 datos de validación apartados, por GD de lote completo durante 800 iteraciones. La Fig.~\ref{fig:early} muestra el patrón que la Sección~\ref{sec:minilotes} anticipa. El error de entrenamiento baja de forma monótona durante toda la corrida. El de validación baja, toca su mínimo en la iteración 130 y vuelve a subir sin pausa: al final de la corrida es 29 veces su mínimo. Detenerse en ese mínimo captura la señal sin el sobreajuste. Es la regularización gratuita en su forma más pura: ningún término extra en la función objetivo, solo la decisión de mirar el error correcto, el de validación, y parar a tiempo.

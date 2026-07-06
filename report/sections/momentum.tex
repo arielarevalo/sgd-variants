@@ -1,0 +1,14 @@
+\section{Momentum}\label{sec:momentum}
+
+GD es un método sin memoria: la dirección de cada iteración depende únicamente del gradiente actual. En un valle angosto, eso lo condena al zigzag de la Sección~\ref{sec:gd}. El remedio de Polyak~\cite{polyak1964}, conocido como el método de la bola pesada, consiste en recordar: se acumula una velocidad que promedia los gradientes recientes,
+\begin{align}
+  v_{k+1} &= \beta\, v_k + g_k, \label{eq:momentum-v}\\
+  \theta_{k+1} &= \theta_k - \alpha\, v_{k+1}, \label{eq:momentum-theta}
+\end{align}
+donde $g_k$ es el gradiente en la iteración $k$ (exacto o muestreado) y $\beta \in [0, 1)$ regula cuánta memoria se conserva. Con $\beta = 0$ se recupera exactamente GD.
+
+La velocidad $v$ es una media exponencial de los gradientes recientes, con memoria efectiva de unas $1/(1-\beta)$ iteraciones (unas diez con $\beta = 0.9$), y eso produce dos efectos complementarios. En la dirección transversal del valle, los gradientes alternan de signo entre iteraciones consecutivas y se cancelan dentro de la suma: el zigzag se amortigua. En la dirección larga del valle, apuntan siempre igual y se componen: la velocidad crece hacia $g/(1-\beta)$, de modo que con $\beta = 0.9$ el avance por iteración llega a ser hasta diez veces el de GD con la misma $\alpha$. El costo adicional es casi nulo: la misma única evaluación de gradiente por iteración, un vector de estado extra y dos líneas más de código.
+
+La ganancia también se cuantifica. Con $\alpha$ y $\beta$ óptimos sobre una cuadrática, el factor de contracción del error pasa de $(\kappa-1)/(\kappa+1)$ a $(\sqrt{\kappa}-1)/(\sqrt{\kappa}+1)$: la dependencia baja de $\kappa$ a $\sqrt{\kappa}$. Para el valle con $\kappa = 25$ de la Sección~\ref{sec:exp}, el factor mejora de $0.923$ a $0.667$, es decir, de reducir el error un $7.7\,\%$ por iteración a reducirlo un $33\,\%$. La honestidad correspondiente: demasiada memoria se pasa de largo en las curvas del paisaje. $\beta$ es una perilla de amortiguamiento, y $0.9$ es un valor típico, no una constante universal.
+
+Momentum es hoy una pieza central de los optimizadores por defecto en aprendizaje automático; un panorama de la familia completa de variantes puede consultarse en~\cite{ruder2016}.

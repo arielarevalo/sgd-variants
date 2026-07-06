@@ -1,0 +1,37 @@
+\section{Implementación}\label{sec:impl}
+
+El código de este trabajo es un paquete de NumPy con cuatro módulos: reglas de actualización, problemas de prueba, un ejecutor de experimentos y la generación de figuras.
+
+\subsection{Reglas de actualización puras}
+
+En \texttt{optimizers.py}, cada optimizador es un par de funciones $(\mathit{init}, \mathit{step})$: $\mathit{init}$ crea el estado inicial y $\mathit{step}$ recibe el punto actual, el gradiente y el estado, y devuelve el punto y el estado siguientes, sin efectos secundarios. GD no tiene estado; Momentum guarda la velocidad. Cada regla ocupa menos de diez líneas y aparece en el Listado~\ref{lst:steps} exactamente como se entrega.
+
+\begin{lstlisting}[float=t, caption={Las reglas de actualización \eqref{eq:gd} y \eqref{eq:momentum-v}--\eqref{eq:momentum-theta} en \texttt{optimizers.py}.}, label={lst:steps}]
+def gd_step(theta, g, state, lr=0.01):
+    theta = theta - lr * g
+    return theta, state
+
+def momentum_step(theta, g, v, lr=0.01, beta=0.9):
+    v = beta * v + g
+    theta = theta - lr * v
+    return theta, v
+\end{lstlisting}
+
+Un detalle de diseño refleja la teoría: SGD no existe como función aparte. La regla~\eqref{eq:gd} no cambia entre las Secciones~\ref{sec:gd} y~\ref{sec:minilotes}; lo que cambia es el origen de $g$. El módulo de problemas produce el gradiente exacto o el estimador de mini-lote~\eqref{eq:minibatch}, y ambos alimentan la misma \texttt{gd\_step}.
+
+\subsection{Problemas y contabilidad}
+
+\texttt{problems.py} implementa las superficies del estudio: la cuadrática mal condicionada $f(x,y) = \frac{1}{2}(x^2 + 25y^2)$, la función de Rosenbrock, el problema sintético de mínimos cuadrados ($n = 80$, con óptimo en forma cerrada por las ecuaciones normales) y la regresión logística regularizada sobre el conjunto banknote~\cite{lohweg2013}. Cada problema expone la pérdida, el gradiente exacto y el gradiente de mini-lote. \texttt{runner.py} ejecuta un optimizador sobre un problema y registra la pérdida sobre todos los datos contra épocas, definidas como evaluaciones de gradientes individuales divididas por $n$: la contabilidad honesta de la Sección~\ref{sec:sgd} está integrada en la infraestructura, no dejada al criterio de cada gráfico. \texttt{figures.py} genera a partir de estas piezas todas las figuras de este documento.
+
+\subsection{Reproducibilidad}
+
+Todos los experimentos usan semillas fijas: misma semilla, mismas iteraciones, mismo resultado, siempre. Los datos sintéticos se generan con el mismo generador pseudoaleatorio (mulberry32) y la misma transformación de Box-Muller que las demostraciones en JavaScript de la presentación oral de este trabajo, de modo que ambas implementaciones producen datos bit a bit idénticos. Una verificación automática (\texttt{check.py}) compara cinco iteraciones de GD y de Momentum entre las dos implementaciones: coinciden a quince decimales. Para un curso de análisis numérico, la reproducibilidad exacta es parte del resultado.
+
+\subsection{Variantes adaptativas de referencia}
+
+El paquete implementa además, con la misma interfaz, tres variantes adaptativas que quedan fuera del alcance experimental de este trabajo: AdaGrad, que escala la tasa por coordenada con la raíz de la suma acumulada de gradientes al cuadrado~\cite{duchi2011}; RMSProp, que sustituye esa suma por una media exponencial para que la escala no decaiga hasta apagarse~\cite{tieleman2012}; y Adam, que combina un numerador tipo Momentum con un denominador tipo RMSProp y corrige el sesgo inicial de ambas medias~\cite{kingma2015}.
+
+\subsection{Disponibilidad}
+
+% TODO(Ariel): confirmar la URL definitiva del repositorio público antes de enviar.
+El paquete completo, los datos y los guiones que regeneran cada figura y cada cifra de este documento están disponibles en \url{https://github.com/arielarevalo/sgd-variants}.

@@ -1,0 +1,13 @@
+\section{Preliminares}\label{sec:preliminares}
+
+\subsection{Notación y unidades de costo}
+
+A lo largo del documento, $\theta \in \R^d$ es el vector de parámetros del modelo, $\ell_i : \R^d \to \R$ es la pérdida asociada al dato $i$, y $f$ es el riesgo empírico~\eqref{eq:erm}. El gradiente $\nabla f(\theta)$ apunta en la dirección de mayor crecimiento local de $f$, el escalar $\alpha > 0$ es la tasa de aprendizaje (el tamaño de paso) y $k$ indexa las iteraciones.
+
+Conviene distinguir dos unidades de cuenta que el resto del trabajo usa sin descanso. Una \emph{iteración} es una actualización del vector $\theta$. Una \emph{época} es una pasada completa por los $n$ datos, es decir, $n$ evaluaciones de gradientes individuales $\nabla\ell_i$. La relación entre ambas depende del método: GD consume una época entera por iteración, mientras que los métodos estocásticos realizan muchas iteraciones por época. Por eso, en este trabajo las comparaciones entre métodos se hacen siempre por épocas, que miden trabajo computacional, y nunca por iteraciones, que no cuestan lo mismo entre métodos.
+
+\subsection{El paisaje de pérdida}
+
+La lectura geométrica que ancla todo lo demás: cada punto $\theta$ del espacio de parámetros es un modelo candidato, y $f$ le asigna una altura. El riesgo empírico define así una superficie sobre $\R^d$, y entrenar es descender por ella hasta el punto más bajo.
+
+Con $d = 2$ la superficie se puede dibujar. Para una regresión lineal por mínimos cuadrados, $y \approx \theta_0 + \theta_1 x$, la pérdida es cuadrática en $\theta$: la superficie es un paraboloide convexo con un único mínimo, dado en forma cerrada por las ecuaciones normales. Ese caso, visualizable y con respuesta exacta conocida, sirve de banco de calibración en las Secciones~\ref{sec:gd} y~\ref{sec:sgd}. En un problema real, en cambio, $d$ es enorme: no se puede ver la superficie ni resolver en forma cerrada, y lo único disponible es la pendiente local $\nabla f(\theta)$ en el punto actual. Entrenar es descender por una superficie invisible sintiendo únicamente la pendiente bajo los pies. Todos los métodos de este trabajo son estrategias para ese descenso.
